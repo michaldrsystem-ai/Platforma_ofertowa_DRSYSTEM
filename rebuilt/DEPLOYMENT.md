@@ -4,7 +4,7 @@ Ten dokument dotyczy wyłącznie etapu 1:
 - wdrożenie frontendu jako aplikacji webowej na Vercel,
 - bez Supabase,
 - bez logowania,
-- bez PWA,
+- bez PWA, 
 - bez migracji danych.
 
 ## 1. Wymagania wstępne
