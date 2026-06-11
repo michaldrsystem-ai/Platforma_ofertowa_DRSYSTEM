@@ -157,7 +157,9 @@ function SitesPage() {
   const startOffer = (siteId: string) => {
     try {
       sessionStorage.setItem("drsystem-pending-site", siteId);
-    } catch {}
+    } catch {
+      // sessionStorage może być niedostępne poza przeglądarką
+    }
     navigate({ to: "/new" });
   };
 

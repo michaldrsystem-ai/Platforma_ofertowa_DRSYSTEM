@@ -147,6 +147,11 @@ export interface Offer {
   scope: ScopeItem[];
   deviceLines: OfferLine[];
 
+  deliveryTerm: string;
+  paymentTerms: string;
+  deviceWarranty: string;
+  workmanshipWarranty: string;
+
   warranty: string;
   validity: string;
   vatNote: string;
@@ -859,8 +864,14 @@ export const DEFAULT_COMPANY: CompanyData = {
   logoDataUrl: null,
 };
 
-export const DEFAULT_WARRANTY = "60 miesięcy";
-export const DEFAULT_VALIDITY = "14 dni";
+export const DEFAULT_DELIVERY_TERM = "do uzgodnienia";
+export const DEFAULT_PAYMENT_TERMS = "14 dni";
+export const DEFAULT_DEVICE_WARRANTY = "zgodnie z gwarancją producenta";
+export const DEFAULT_WORKMANSHIP_WARRANTY = "12 miesięcy";
+
+// Zachowane dla zgodności wstecznej ze starszymi rekordami / eksportami.
+export const DEFAULT_WARRANTY = DEFAULT_DEVICE_WARRANTY;
+export const DEFAULT_VALIDITY = DEFAULT_PAYMENT_TERMS;
 export const DEFAULT_VAT_NOTE = "Do cen należy doliczyć podatek VAT według obowiązujących stawek.";
 
 export const SEED_DEVICES: Omit<Device, "id" | "usageCount" | "lastUsedAt">[] = [
@@ -1749,4 +1760,23 @@ export function calcTotals(offer: Offer) {
     0,
   );
   return { dev, scope, total: dev + scope };
+}
+
+export function getOfferCommercialTerms(
+  offer: Partial<
+    Pick<Offer, "deliveryTerm" | "paymentTerms" | "deviceWarranty" | "workmanshipWarranty" | "warranty" | "validity">
+  >,
+) {
+  const deliveryTerm = offer.deliveryTerm?.trim() || DEFAULT_DELIVERY_TERM;
+  const paymentTerms = offer.paymentTerms?.trim() || offer.validity?.trim() || DEFAULT_PAYMENT_TERMS;
+  const deviceWarranty =
+    offer.deviceWarranty?.trim() || offer.warranty?.trim() || DEFAULT_DEVICE_WARRANTY;
+  const workmanshipWarranty = offer.workmanshipWarranty?.trim() || DEFAULT_WORKMANSHIP_WARRANTY;
+
+  return {
+    deliveryTerm,
+    paymentTerms,
+    deviceWarranty,
+    workmanshipWarranty,
+  };
 }

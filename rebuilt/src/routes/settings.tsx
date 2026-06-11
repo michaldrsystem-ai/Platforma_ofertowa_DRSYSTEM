@@ -63,7 +63,7 @@ function SettingsPage() {
             ] as const).map(([k, label]) => (
               <div key={k} className="space-y-1.5">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">{label}</Label>
-                <Input value={(local as any)[k] ?? ""} onChange={(e) => setLocal({ ...local, [k]: e.target.value })} />
+                <Input value={local[k] ?? ""} onChange={(e) => setLocal({ ...local, [k]: e.target.value })} />
               </div>
             ))}
           </div>

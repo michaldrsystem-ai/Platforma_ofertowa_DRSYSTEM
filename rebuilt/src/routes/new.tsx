@@ -33,8 +33,14 @@ import { useStore } from "@/lib/drsystem-store";
 import {
   calcLine,
   calcTotals,
+  DEFAULT_DELIVERY_TERM,
+  DEFAULT_DEVICE_WARRANTY,
+  DEFAULT_PAYMENT_TERMS,
+  DEFAULT_WORKMANSHIP_WARRANTY,
+  getOfferCommercialTerms,
   type Device,
   type OfferLine,
+  type OfferStatus,
   type OfferTemplate,
   type Site,
 } from "@/lib/drsystem-types";
@@ -89,6 +95,13 @@ const STEPS = [
   { key: 5, label: "PDF", icon: FileDown },
 ] as const;
 
+const STATUS_OPTIONS: Array<{ value: OfferStatus; label: string }> = [
+  { value: "draft", label: "Robocza" },
+  { value: "sent", label: "Wysłana" },
+  { value: "accepted", label: "Zaakceptowana" },
+  { value: "rejected", label: "Odrzucona" },
+];
+
 function NewOfferWizard() {
   const navigate = useNavigate();
   const search = Route.useSearch();
@@ -107,7 +120,6 @@ function NewOfferWizard() {
   const company = useStore((s) => s.company);
   const createOffer = useStore((s) => s.createOffer);
   const updateOffer = useStore((s) => s.updateOffer);
-  const applySiteToOffer = useStore((s) => s.applySiteToOffer);
   const applySiteRecordToOffer = useStore((s) => s.applySiteRecordToOffer);
   const sites = useStore((s) => s.sites);
   const linkContactToSite = useStore((s) => s.linkContactToSite);
@@ -136,16 +148,12 @@ function NewOfferWizard() {
     setContactName(existing.clientContact || "");
     setContactEmail(existing.clientEmail || "");
     setContactPhone(existing.clientPhone || "");
-    setSiteAddress(existing.locationAddress || "");
-    if (existing.siteId) {
-      const allSites = useStore.getState().sites;
-      const site = allSites.find((s) => s.id === existing.siteId);
-      if (site) setPickedSiteId(site.id);
-    }
-    if (existing.clientId) setClientId(existing.clientId);
-    if (existing.locationId) setSiteId(existing.locationId);
-    if (existing.facilityCompanyId) setFacilityId(existing.facilityCompanyId);
-    if (existing.contactPersonId) setContactId(existing.contactPersonId);
+    setSiteAddress(existing.locationAddress || existing.siteObjectName || "");
+    setPickedSiteId(existing.siteId || "");
+    setClientId(existing.clientId || "");
+    setSiteId(existing.locationId || "");
+    setFacilityId(existing.facilityCompanyId || "");
+    setContactId(existing.contactPersonId || "");
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.id]);
@@ -198,6 +206,7 @@ function NewOfferWizard() {
   const [tplName, setTplName] = useState("");
 
   const offer = useStore((s) => (offerId ? s.offers.find((o) => o.id === offerId) : undefined));
+  const offerTerms = useMemo(() => (offer ? getOfferCommercialTerms(offer) : null), [offer]);
   const selectedClient = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
   const selectedSite = useMemo(
     () =>
@@ -214,13 +223,15 @@ function NewOfferWizard() {
         sessionStorage.removeItem("drsystem-pending-site");
         setPickedSiteId(pending);
       }
-    } catch {}
+    } catch {
+      // brak dostępu do sessionStorage poza przeglądarką
+    }
   }, []);
 
   // Po wyborze OBIEKTU z bazy obiektów — auto-uzupełnij klienta, adres, kontakt
   useEffect(() => {
     if (!pickedSite) return;
-    if (pickedSite.clientId) {
+    if (pickedSite.clientId && !clientId) {
       setClientId(pickedSite.clientId);
       // dopasuj lokalizację klienta po mieście/nazwie
       const client = clients.find((c) => c.id === pickedSite.clientId);
@@ -231,51 +242,43 @@ function NewOfferWizard() {
       );
       if (match) setSiteId(match.id);
     }
-    if (pickedSite.address) setSiteAddress(pickedSite.address);
-    if (pickedSite.contactIds.length > 0) {
+    if (!siteAddress.trim() && pickedSite.address) setSiteAddress(pickedSite.address);
+    if (pickedSite.contactIds.length > 0 && !contactId) {
       const firstContact = pickedSite.contactIds[0];
       setContactId(firstContact);
       const cp = contactPersons.find((p) => p.id === firstContact);
-      if (cp?.phone) setContactPhone(cp.phone);
-      if (cp?.email) setContactEmail(cp.email);
-      if (cp?.name) setContactName(cp.name);
+      if (!contactPhone.trim() && cp?.phone) setContactPhone(cp.phone);
+      if (!contactEmail.trim() && cp?.email) setContactEmail(cp.email);
+      if (!contactName.trim() && cp?.name) setContactName(cp.name);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickedSiteId]);
 
   // Auto-uzupełnienie po wyborze KLIENTA — telefon/e-mail klienta + domyślna osoba kontaktowa
   useEffect(() => {
-    if (!selectedClient) {
-      setContactPhone("");
-      setContactEmail("");
-      setContactId("");
-      return;
-    }
-    // Telefon/e-mail z karty klienta (jeśli zapisane)
-    setContactPhone(selectedClient.phone || "");
-    setContactEmail(selectedClient.email || "");
-    // Domyślna osoba kontaktowa (jeśli przypisana)
-    if (selectedClient.defaultContactPersonId) {
+    if (!selectedClient) return;
+    if (!contactPhone.trim() && selectedClient.phone) setContactPhone(selectedClient.phone);
+    if (!contactEmail.trim() && selectedClient.email) setContactEmail(selectedClient.email);
+    if (!contactId && selectedClient.defaultContactPersonId) {
       setContactId(selectedClient.defaultContactPersonId);
-    } else {
-      setContactId("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClient?.id]);
 
   // Auto-uzupełnienie po wyborze LOKALIZACJI — FM, adres, kontakty
   useEffect(() => {
-    if (selectedSite) {
-      setFacilityId(selectedSite.facilityCompanyId || "");
-      setSiteAddress(selectedSite.address || "");
-      // Jeśli lokalizacja ma przypisane osoby — wybierz pierwszą jako domyślną,
-      // chyba że już mamy wybraną osobę z tej puli.
-      const siteContactIds = selectedSite.contactPersonIds || [];
-      if (siteContactIds.length > 0 && !siteContactIds.includes(contactId)) {
-        setContactId(siteContactIds[0]);
-      }
-    } else {
-      setFacilityId("");
-      setSiteAddress("");
+    if (!selectedSite) return;
+    if (!facilityId && selectedSite.facilityCompanyId) {
+      setFacilityId(selectedSite.facilityCompanyId);
+    }
+    if (!siteAddress.trim() && selectedSite.address) {
+      setSiteAddress(selectedSite.address);
+    }
+    // Jeśli lokalizacja ma przypisane osoby — wybierz pierwszą jako domyślną,
+    // chyba że już mamy wybraną osobę z tej puli.
+    const siteContactIds = selectedSite.contactPersonIds || [];
+    if (siteContactIds.length > 0 && !contactId) {
+      setContactId(siteContactIds[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSite?.id]);
@@ -539,12 +542,21 @@ function NewOfferWizard() {
     const resolvedContactId = savedContact?.id || contactId || undefined;
 
     applySiteRecordToOffer(id, pickedSite.id, resolvedContactId);
+    const facilityCompanyName =
+      (facilityId ? facilityCompanies.find((f) => f.id === facilityId)?.name : undefined) ||
+      offer?.facilityCompanyName ||
+      "";
+
     updateOffer(id, {
       siteId: pickedSite.id,
       siteObjectName: pickedSite.name,
       clientId: pickedSite.clientId,
-      clientName: pickedSite.company || "",
+      clientName: pickedSite.company || offer?.clientName || "",
+      locationId: siteId || offer?.locationId,
       locationAddress: siteAddress || pickedSite.address || pickedSite.name,
+      facilityCompanyId: facilityId || offer?.facilityCompanyId,
+      facilityCompanyName,
+      contactPersonId: resolvedContactId,
       investmentName: investmentName.trim(),
       date: offerDate || new Date().toISOString().slice(0, 10),
       clientContact: contactName.trim(),
@@ -1012,17 +1024,13 @@ function NewOfferWizard() {
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {pickedSite?.contactIds.length ? (
-                        pickedSite.contactIds.map((cid) => {
-                          const c = contactPersons.find((p) => p.id === cid);
-                          if (!c) return null;
-                          return (
-                            <SelectItem key={cid} value={cid}>
-                              {c.name}
-                              {c.email ? ` · ${c.email}` : ""}
-                            </SelectItem>
-                          );
-                        })
+                      {availableContacts.length ? (
+                        availableContacts.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                            {c.email ? ` · ${c.email}` : ""}
+                          </SelectItem>
+                        ))
                       ) : (
                         <div className="px-2 py-1.5 text-xs text-muted-foreground">
                           Brak przypisanych kontaktów
@@ -1890,6 +1898,77 @@ function NewOfferWizard() {
                 />
 
                 <Card className="p-6">
+                  <div className="mb-4">
+                    <h2 className="text-base font-semibold">Warunki handlowe i zapis oferty</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Te wartości zapisują się indywidualnie dla tej oferty i trafiają do eksportu.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Status oferty</Label>
+                      <Select
+                        value={offer.status}
+                        onValueChange={(value) => updateOffer(offer.id, { status: value as OfferStatus })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Wybierz status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Termin realizacji</Label>
+                      <Input
+                        value={offer.deliveryTerm}
+                        onChange={(e) => updateOffer(offer.id, { deliveryTerm: e.target.value })}
+                        placeholder={DEFAULT_DELIVERY_TERM}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Warunki płatności</Label>
+                      <Input
+                        value={offer.paymentTerms}
+                        onChange={(e) => updateOffer(offer.id, { paymentTerms: e.target.value })}
+                        placeholder={DEFAULT_PAYMENT_TERMS}
+                        inputMode="text"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Gwarancja na urządzenia</Label>
+                      <Input
+                        value={offer.deviceWarranty}
+                        onChange={(e) => updateOffer(offer.id, { deviceWarranty: e.target.value })}
+                        placeholder={DEFAULT_DEVICE_WARRANTY}
+                      />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label>Gwarancja na wykonanie</Label>
+                      <Input
+                        value={offer.workmanshipWarranty}
+                        onChange={(e) => updateOffer(offer.id, { workmanshipWarranty: e.target.value })}
+                        placeholder={DEFAULT_WORKMANSHIP_WARRANTY}
+                      />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label>Notatki wewnętrzne</Label>
+                      <Textarea
+                        value={offer.internalNote}
+                        onChange={(e) => updateOffer(offer.id, { internalNote: e.target.value })}
+                        placeholder="Widoczne po ponownym wejściu w edycję tej oferty"
+                        className="min-h-[100px]"
+                      />
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-6">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
                       <h2 className="text-base font-semibold">Zakres prac z cenami</h2>
@@ -2038,7 +2117,7 @@ function NewOfferWizard() {
                   Oferta <strong>{offer.number}</strong> dla <strong>{offer.clientName}</strong>
                 </p>
 
-                <div className="mt-6 grid grid-cols-3 gap-3 text-left text-sm">
+                <div className="mt-6 grid gap-3 text-left text-sm sm:grid-cols-2 xl:grid-cols-3">
                   <Card className="p-3">
                     <div className="text-xs text-muted-foreground">Zakres prac</div>
                     <div className="text-xl font-bold">{offer.scope.length}</div>
@@ -2062,6 +2141,44 @@ function NewOfferWizard() {
                   </div>
                   <div className="mt-1 text-[11px] opacity-70">{offer.vatNote}</div>
                 </div>
+
+                {offerTerms && (
+                  <div className="mt-6 grid gap-3 text-left sm:grid-cols-2">
+                    <Card className="p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Termin realizacji
+                      </div>
+                      <div className="mt-1 font-medium">{offerTerms.deliveryTerm}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Warunki płatności
+                      </div>
+                      <div className="mt-1 font-medium">{offerTerms.paymentTerms}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Gwarancja na urządzenia
+                      </div>
+                      <div className="mt-1 font-medium">{offerTerms.deviceWarranty}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Gwarancja na wykonanie
+                      </div>
+                      <div className="mt-1 font-medium">{offerTerms.workmanshipWarranty}</div>
+                    </Card>
+                  </div>
+                )}
+
+                {offer.internalNote?.trim() ? (
+                  <Card className="mt-4 p-4 text-left">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Notatki wewnętrzne
+                    </div>
+                    <div className="mt-1 whitespace-pre-wrap text-sm">{offer.internalNote}</div>
+                  </Card>
+                ) : null}
 
                 <div className="mt-6 flex flex-wrap justify-center gap-2">
                   <Button variant="ghost" onClick={goBack}>
@@ -2197,7 +2314,7 @@ function NewOfferWizard() {
   );
 }
 
-function PanelRow({ label, value }: { label: string; value: number }) {
+function PanelRow({ label, value }: { label: string; value: string | number }) {
   return (
     <li className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
       <span className="text-muted-foreground">{label}</span>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
@@ -14,9 +15,13 @@ import {
   type SystemCategory,
   DEFAULT_CATEGORIES,
   DEFAULT_COMPANY,
+  DEFAULT_DELIVERY_TERM,
+  DEFAULT_DEVICE_WARRANTY,
+  DEFAULT_PAYMENT_TERMS,
   DEFAULT_VALIDITY,
   DEFAULT_VAT_NOTE,
   DEFAULT_WARRANTY,
+  DEFAULT_WORKMANSHIP_WARRANTY,
   SEED_CLIENTS,
   SEED_CONTACT_PERSONS,
   SEED_DEVICES,
@@ -607,6 +612,10 @@ export const useStore = create<Store>()(
           preparedEmail: c.preparedEmail,
           scope: [],
           deviceLines: [],
+          deliveryTerm: DEFAULT_DELIVERY_TERM,
+          paymentTerms: DEFAULT_PAYMENT_TERMS,
+          deviceWarranty: DEFAULT_DEVICE_WARRANTY,
+          workmanshipWarranty: DEFAULT_WORKMANSHIP_WARRANTY,
           warranty: DEFAULT_WARRANTY,
           validity: DEFAULT_VALIDITY,
           vatNote: DEFAULT_VAT_NOTE,
@@ -696,8 +705,8 @@ export const useStore = create<Store>()(
       },
     }),
     {
-      name: "drsystem-store-v9",
-      version: 9,
+      name: "drsystem-store-v10",
+      version: 10,
       migrate: (persistedState) => persistedState as Store,
       onRehydrateStorage: () => (state) => {
         if (!state) return;
@@ -734,6 +743,15 @@ export const useStore = create<Store>()(
             return {
               ...offer,
               scope: normalizedScope,
+              deliveryTerm: offer.deliveryTerm?.trim() || DEFAULT_DELIVERY_TERM,
+              paymentTerms: offer.paymentTerms?.trim() || offer.validity?.trim() || DEFAULT_PAYMENT_TERMS,
+              deviceWarranty:
+                offer.deviceWarranty?.trim() || offer.warranty?.trim() || DEFAULT_DEVICE_WARRANTY,
+              workmanshipWarranty:
+                offer.workmanshipWarranty?.trim() || DEFAULT_WORKMANSHIP_WARRANTY,
+              warranty: offer.warranty?.trim() || DEFAULT_WARRANTY,
+              validity: offer.validity?.trim() || DEFAULT_VALIDITY,
+              vatNote: offer.vatNote?.trim() || DEFAULT_VAT_NOTE,
             };
           });
         }

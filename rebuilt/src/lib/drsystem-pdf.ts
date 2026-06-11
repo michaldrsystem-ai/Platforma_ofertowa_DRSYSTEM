@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import {
   calcLine,
   calcTotals,
+  getOfferCommercialTerms,
   type CompanyData,
   type Offer,
   type OfferLine,
@@ -30,6 +31,12 @@ const FOOTER_TOP = 22; // wysokość zajęta przez stopkę
 
 const fmt = (n: number) =>
   n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
+
+type AutoTableDoc = jsPDF & {
+  lastAutoTable?: {
+    finalY?: number;
+  };
+};
 
 function assertPolishGlyphs(doc: jsPDF) {
   const probe = "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ";
@@ -337,7 +344,7 @@ export async function generateOfferPdf(offer: Offer, company: CompanyData): Prom
         }
       },
     });
-    y = (doc as any).lastAutoTable?.finalY ?? y;
+    y = (doc as AutoTableDoc).lastAutoTable?.finalY ?? y;
 
     if (!offer.hideUnitPrices) {
       const tableRight = M_L + 10 + 92 + 18 + 24 + 30;
@@ -400,9 +407,13 @@ export async function generateOfferPdf(offer: Offer, company: CompanyData): Prom
   }
 
   // ===== WARUNKI =====
-  const warTerms: [string, string][] = [];
-  if (offer.warranty?.trim()) warTerms.push(["Gwarancja", offer.warranty.trim()]);
-  if (offer.validity?.trim()) warTerms.push(["Ważność oferty", offer.validity.trim()]);
+  const commercialTerms = getOfferCommercialTerms(offer);
+  const warTerms: [string, string][] = [
+    ["Termin realizacji", commercialTerms.deliveryTerm],
+    ["Warunki płatności", commercialTerms.paymentTerms],
+    ["Gwarancja na urządzenia", commercialTerms.deviceWarranty],
+    ["Gwarancja na wykonanie", commercialTerms.workmanshipWarranty],
+  ];
   if (warTerms.length > 0) {
     y += 2;
     y = ensureSpace(doc, y, 12 + warTerms.length * 5, company, offer);

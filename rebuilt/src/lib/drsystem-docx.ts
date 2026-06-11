@@ -21,6 +21,7 @@ const { saveAs } = fileSaver;
 import {
   calcLine,
   calcTotals,
+  getOfferCommercialTerms,
   type CompanyData,
   type Offer,
   type OfferLine,
@@ -162,6 +163,7 @@ function dataUrlToUint8(dataUrl: string): { data: Uint8Array; type: "png" | "jpg
 
 export async function generateOfferDocx(offer: Offer, company: CompanyData) {
   const totals = calcTotals(offer);
+  const commercialTerms = getOfferCommercialTerms(offer);
 
   const headerChildren: Paragraph[] = [];
   if (company.logoDataUrl) {
@@ -179,7 +181,9 @@ export async function generateOfferDocx(offer: Offer, company: CompanyData) {
           ],
         }),
       );
-    } catch {}
+    } catch {
+      // ignoruj nieprawidłowe dane logo i użyj tekstowego nagłówka
+    }
   } else {
     headerChildren.push(p(company.name, { bold: true, size: 22, color: PRIMARY }));
   }
@@ -287,8 +291,10 @@ export async function generateOfferDocx(offer: Offer, company: CompanyData) {
           p(`Razem urządzenia netto: ${fmt(totals.dev)} zł`),
           p(`Łącznie netto: ${fmt(totals.total)} zł`, { bold: true, color: PRIMARY, size: 24 }),
           sectionHeading("INFORMACJE DODATKOWE"),
-          p(`Gwarancja: ${offer.warranty}`),
-          p(`Ważność oferty: ${offer.validity}`),
+          p(`Termin realizacji: ${commercialTerms.deliveryTerm}`),
+          p(`Warunki płatności: ${commercialTerms.paymentTerms}`),
+          p(`Gwarancja na urządzenia: ${commercialTerms.deviceWarranty}`),
+          p(`Gwarancja na wykonanie: ${commercialTerms.workmanshipWarranty}`),
           p(offer.vatNote, { color: MUTED }),
         ],
       },

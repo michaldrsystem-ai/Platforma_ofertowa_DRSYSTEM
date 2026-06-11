@@ -271,7 +271,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function ImportDialog() {
   const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<Array<Record<string, any>>>([]);
+  const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [mapping, setMapping] = useState({
@@ -291,7 +291,7 @@ function ImportDialog() {
     const buf = await f.arrayBuffer();
     const wb = XLSX.read(buf);
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const data: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
     if (data.length === 0) {
       toast.error("Plik jest pusty");
       return;
