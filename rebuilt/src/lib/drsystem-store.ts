@@ -75,6 +75,8 @@ interface Store {
   /** Po usunięciu danych przykładowych nie dosiewamy ich ponownie przy starcie. */
   samplesDismissed?: boolean;
   servicesSeeded?: boolean;
+  /** Dosiew usług DRSYSTEM dla stanów zapisanych przed ich wprowadzeniem (brak w domyślnym stanie celowo). */
+  servicesSeededV2?: boolean;
 
   upsertTemplate: (t: OfferTemplate) => void;
   deleteTemplate: (id: string) => void;
@@ -829,13 +831,14 @@ export const useStore = create<Store>()(
         const cats = Array.isArray(state.categories) ? state.categories : [];
         state.categories = Array.from(new Set([...need, ...cats]));
         // Stawki usług DRSYSTEM: dosiewamy raz (potem użytkownik może je zmieniać i usuwać)
-        if (!state.servicesSeeded) {
+        if (!state.servicesSeeded || !state.servicesSeededV2) {
           for (const d of SEED_SERVICES) {
             if (!state.devices.some((x) => x.code === d.code)) {
               state.devices.push({ ...d, id: uid(), usageCount: 0, lastUsedAt: null });
             }
           }
           state.servicesSeeded = true;
+          state.servicesSeededV2 = true;
         }
         // Dosiew brakujących urządzeń (oznaczone jako przykładowe), chyba że użytkownik je usunął
         for (const d of state.samplesDismissed ? [] : SEED_DEVICES) {
