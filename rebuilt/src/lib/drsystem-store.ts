@@ -75,8 +75,8 @@ interface Store {
   /** Po usunięciu danych przykładowych nie dosiewamy ich ponownie przy starcie. */
   samplesDismissed?: boolean;
   servicesSeeded?: boolean;
-  /** Dosiew usług DRSYSTEM dla stanów zapisanych przed ich wprowadzeniem (brak w domyślnym stanie celowo). */
-  servicesSeededV2?: boolean;
+  /** Kody usług DRSYSTEM usuniętych celowo przez użytkownika (nie dosiewamy ich ponownie). */
+  dismissedServiceCodes?: string[];
 
   upsertTemplate: (t: OfferTemplate) => void;
   deleteTemplate: (id: string) => void;
@@ -525,7 +525,16 @@ export const useStore = create<Store>()(
             ? get().devices.map((x) => (x.id === d.id ? d : x))
             : [...get().devices, { ...d, id: d.id || uid() }],
         }),
-      deleteDevice: (id) => set({ devices: get().devices.filter((d) => d.id !== id) }),
+      deleteDevice: (id) => {
+        const dev = get().devices.find((d) => d.id === id);
+        const isSeedService = !!dev?.code && SEED_SERVICES.some((x) => x.code === dev.code);
+        set({
+          devices: get().devices.filter((d) => d.id !== id),
+          ...(isSeedService
+            ? { dismissedServiceCodes: [...(get().dismissedServiceCodes ?? []), dev!.code!] }
+            : {}),
+        });
+      },
       importDevices: (rows, category) => {
         const existing = get().devices;
         const out = [...existing];
@@ -830,16 +839,17 @@ export const useStore = create<Store>()(
         ];
         const cats = Array.isArray(state.categories) ? state.categories : [];
         state.categories = Array.from(new Set([...need, ...cats]));
-        // Stawki usług DRSYSTEM: dosiewamy raz (potem użytkownik może je zmieniać i usuwać)
-        if (!state.servicesSeeded || !state.servicesSeededV2) {
-          for (const d of SEED_SERVICES) {
-            if (!state.devices.some((x) => x.code === d.code)) {
-              state.devices.push({ ...d, id: uid(), usageCount: 0, lastUsedAt: null });
-            }
+        // Stawki usług DRSYSTEM: zawsze obecne (po kodzie), chyba że użytkownik je celowo usunął.
+        // Bez flag „już dosiane”: flaga dziedziczona przy scalaniu stanu (rehydracja po pobraniu z chmury)
+        // blokowała dosiew u osób ze starym zapisem.
+        const dismissed = Array.isArray(state.dismissedServiceCodes) ? state.dismissedServiceCodes : [];
+        for (const d of SEED_SERVICES) {
+          if (dismissed.includes(d.code ?? "")) continue;
+          if (!state.devices.some((x) => x.code === d.code)) {
+            state.devices.push({ ...d, id: uid(), usageCount: 0, lastUsedAt: null });
           }
-          state.servicesSeeded = true;
-          state.servicesSeededV2 = true;
         }
+        state.servicesSeeded = true;
         // Dosiew brakujących urządzeń (oznaczone jako przykładowe), chyba że użytkownik je usunął
         for (const d of state.samplesDismissed ? [] : SEED_DEVICES) {
           if (!state.devices.some((x) => x.code === d.code || x.name === d.name)) {
