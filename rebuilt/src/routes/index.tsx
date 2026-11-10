@@ -21,9 +21,10 @@ import {
 } from "@/components/ui/table";
 import { useStore } from "@/lib/drsystem-store";
 import { calcTotals, type Offer, type OfferStatus } from "@/lib/drsystem-types";
-import { Copy, FileDown, FileSpreadsheet, Plus, Search, Send, Trash2, Zap, Pencil } from "lucide-react";
+import { Copy, FileDown, FileSpreadsheet, FileText, Plus, Search, Send, Trash2, Zap, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { generateOfferPdf } from "@/lib/drsystem-pdf";
+import { confirmOfferCheck } from "@/lib/offer-check";
 import { buildOfferFilename } from "@/lib/offer-filename";
 import { exportOfferJson, exportRegistryXlsx, toRegistryRow } from "@/lib/registry-export";
 
@@ -86,7 +87,19 @@ function OffersList() {
     }
   };
 
+  const handleWord = async (o: Offer) => {
+    if (!confirmOfferCheck(o, toast.error)) return;
+    const { buildOfferDocx } = await import("@/lib/drsystem-docx");
+    const blob = await buildOfferDocx(o, company);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = buildOfferFilename(o, "docx");
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   const handlePdf = async (o: Offer) => {
+    if (!confirmOfferCheck(o, toast.error)) return;
     const doc = await generateOfferPdf(o, company);
     doc.save(buildOfferFilename(o, "pdf"));
   };
@@ -209,6 +222,14 @@ function OffersList() {
                         title="Edytuj"
                       >
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleWord(o)}
+                        title="Pobierz Word"
+                      >
+                        <FileText className="h-4 w-4" />
                       </Button>
                       <Button
                         size="icon"

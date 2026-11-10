@@ -46,6 +46,7 @@ import {
 } from "@/lib/drsystem-types";
 import { generatePurpose } from "@/lib/purpose-generator";
 import { generateOfferPdf } from "@/lib/drsystem-pdf";
+import { confirmOfferCheck } from "@/lib/offer-check";
 import { buildOfferFilename } from "@/lib/offer-filename";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -841,13 +842,23 @@ function NewOfferWizard() {
   // === STEP 6 — PDF ===
   const exportPdf = async () => {
     if (!offer) return;
-    if (!offer.clientName.trim() || !offer.investmentName.trim() || !offer.locationAddress.trim()) {
-      toast.error("Uzupełnij klienta, inwestycję i lokalizację");
-      return;
-    }
+    if (!confirmOfferCheck(offer, toast.error)) return;
     const doc = await generateOfferPdf(offer, company);
     doc.save(buildOfferFilename(offer, "pdf"));
     toast.success(`PDF zapisany — ${offer.number}`);
+  };
+
+  const exportWord = async () => {
+    if (!offer) return;
+    if (!confirmOfferCheck(offer, toast.error)) return;
+    const { buildOfferDocx } = await import("@/lib/drsystem-docx");
+    const blob = await buildOfferDocx(offer, company);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = buildOfferFilename(offer, "docx");
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast.success(`Word zapisany — ${offer.number}`);
   };
 
   const onSaveTemplate = () => {
@@ -2188,7 +2199,11 @@ function NewOfferWizard() {
                   <Button variant="outline" onClick={() => navigate({ to: "/" })}>
                     Lista ofert
                   </Button>
-                  <Button onClick={exportPdf} className="gap-2">
+                  <Button onClick={exportWord} className="gap-2">
+                    <FileDown className="h-4 w-4" />
+                    Pobierz Word
+                  </Button>
+                  <Button variant="outline" onClick={exportPdf} className="gap-2">
                     <FileDown className="h-4 w-4" />
                     Pobierz PDF
                   </Button>
