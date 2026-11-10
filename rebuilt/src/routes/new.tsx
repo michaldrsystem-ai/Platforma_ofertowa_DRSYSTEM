@@ -146,6 +146,7 @@ function NewOfferWizard() {
     setOfferId(existing.id);
     setInvestmentName(existing.investmentName || "");
     setOfferDate(existing.date || new Date().toISOString().slice(0, 10));
+    setInquiryDate(existing.inquiryDate || "");
     setContactName(existing.clientContact || "");
     setContactEmail(existing.clientEmail || "");
     setContactPhone(existing.clientPhone || "");
@@ -173,6 +174,7 @@ function NewOfferWizard() {
   const [siteAddress, setSiteAddress] = useState("");
   const [investmentName, setInvestmentName] = useState("");
   const [contactName, setContactName] = useState("");
+  const [inquiryDate, setInquiryDate] = useState<string>("");
   const [offerDate, setOfferDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   // dialogi szybkiego dodania
@@ -560,6 +562,7 @@ function NewOfferWizard() {
       contactPersonId: resolvedContactId,
       investmentName: investmentName.trim(),
       date: offerDate || new Date().toISOString().slice(0, 10),
+      inquiryDate: inquiryDate || undefined,
       clientContact: contactName.trim(),
       clientPhone: contactPhone.trim(),
       clientEmail: contactEmail.trim(),
@@ -1119,6 +1122,15 @@ function NewOfferWizard() {
                 type="date"
                 value={offerDate}
                 onChange={(e) => setOfferDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Zapytanie z dnia (opcjonalnie, do rejestru)</Label>
+              <Input
+                className="mt-2"
+                type="date"
+                value={inquiryDate}
+                onChange={(e) => setInquiryDate(e.target.value)}
               />
             </div>
           </div>

@@ -113,6 +113,8 @@ interface Store {
   applyTemplate: (offerId: string, templateId: string) => void;
 }
 
+const ymd2 = () => new Date().toISOString().slice(0, 10);
+
 function nextOfferNumber(offers: Offer[]): string {
   const today = ymd();
   const sameDay = offers.filter((o) => o.number.endsWith("/" + today));
@@ -660,9 +662,14 @@ export const useStore = create<Store>()(
       },
       updateOffer: (id, patch) =>
         set({
-          offers: get().offers.map((o) =>
-            o.id === id ? { ...o, ...patch, updatedAt: Date.now() } : o,
-          ),
+          offers: get().offers.map((o) => {
+            if (o.id !== id) return o;
+            const next = { ...o, ...patch, updatedAt: Date.now() };
+            // Daty do rejestru Sales partner: wpisują się same przy zmianie statusu.
+            if (patch.status === "sent" && !next.sentDate) next.sentDate = ymd2();
+            if (patch.status === "accepted" && !next.acceptedDate) next.acceptedDate = ymd2();
+            return next;
+          }),
         }),
       deleteOffer: (id) => set({ offers: get().offers.filter((o) => o.id !== id) }),
 

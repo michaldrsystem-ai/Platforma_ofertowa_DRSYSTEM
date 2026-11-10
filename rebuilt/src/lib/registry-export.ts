@@ -42,6 +42,27 @@ export function toRegistryRow(o: Offer, filename: string): RegistryRow {
   };
 }
 
+/** Dokument w układzie bazy strony Sales partner (kolekcja offers). Id stałe, więc zapis jest idempotentny. */
+export function toSalesPartnerDoc(o: Offer) {
+  const status =
+    o.status === "draft" ? "utworzona" : o.status === "sent" ? "wyslana" : o.status === "accepted" ? "przyjeta" : "nieweszla";
+  return {
+    id: `app-${o.id}`,
+    nr: o.number,
+    object: o.siteObjectName || o.locationAddress,
+    subject: o.purpose?.trim() || o.investmentName,
+    client: o.clientName,
+    person: o.clientContact,
+    net: Math.round(calcTotals(o).total * 100) / 100,
+    status,
+    date: o.date,
+    inquiryDate: o.inquiryDate ?? "",
+    sentDate: o.sentDate ?? "",
+    acceptedDate: o.acceptedDate ?? "",
+    note: "z aplikacji ofertowej",
+  };
+}
+
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -55,7 +76,7 @@ export function exportOfferJson(o: Offer, filename: string) {
   const row = toRegistryRow(o, filename);
   const safe = (o.number || "oferta").replace(/[^a-zA-Z0-9-]+/g, "-");
   download(
-    new Blob([JSON.stringify(row, null, 2)], { type: "application/json" }),
+    new Blob([JSON.stringify({ ...row, salesPartner: toSalesPartnerDoc(o) }, null, 2)], { type: "application/json" }),
     `rejestr_${safe}.json`,
   );
 }

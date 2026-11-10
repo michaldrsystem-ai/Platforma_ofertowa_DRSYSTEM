@@ -133,6 +133,10 @@ export interface Offer {
   // Powiązania z lokalizacją, firmą FM i osobą kontaktową
   siteId?: string;
   siteObjectName?: string;
+  /** Daty do rejestru Sales partner (RRRR-MM-DD) */
+  inquiryDate?: string;
+  sentDate?: string;
+  acceptedDate?: string;
   facilityCompanyId?: string;
   facilityCompanyName?: string;
   contactPersonId?: string;
