@@ -21,10 +21,11 @@ import {
 } from "@/components/ui/table";
 import { useStore } from "@/lib/drsystem-store";
 import { calcTotals, type Offer, type OfferStatus } from "@/lib/drsystem-types";
-import { Copy, FileDown, Plus, Search, Trash2, Zap, Pencil } from "lucide-react";
+import { Copy, FileDown, FileSpreadsheet, Plus, Search, Send, Trash2, Zap, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { generateOfferPdf } from "@/lib/drsystem-pdf";
 import { buildOfferFilename } from "@/lib/offer-filename";
+import { exportOfferJson, exportRegistryXlsx, toRegistryRow } from "@/lib/registry-export";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -90,11 +91,24 @@ function OffersList() {
     doc.save(buildOfferFilename(o, "pdf"));
   };
 
+  const handleRegistryXlsx = async () => {
+    await exportRegistryXlsx(filtered.map((o) => toRegistryRow(o, buildOfferFilename(o, "docx"))));
+    toast.success(`Wyeksportowano ${filtered.length} ofert do Excela`);
+  };
+
+  const handleRegistryOne = (o: Offer) => {
+    exportOfferJson(o, buildOfferFilename(o, "docx"));
+    toast.success("Plik do rejestru Sales partner pobrany");
+  };
+
   return (
     <AppShell
       title="Oferty handlowe"
       actions={
         <>
+          <Button variant="outline" onClick={handleRegistryXlsx} className="gap-2">
+            <FileSpreadsheet className="h-4 w-4" /> Rejestr (Excel)
+          </Button>
           <Button variant="outline" onClick={() => navigate({ to: "/quick" })} className="gap-2">
             <Zap className="h-4 w-4" /> Szybka oferta
           </Button>
@@ -138,7 +152,7 @@ function OffersList() {
               <TableHead>Lokalizacja</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Wartość netto</TableHead>
-              <TableHead className="w-44 text-right">Akcje</TableHead>
+              <TableHead className="w-52 text-right">Akcje</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -203,6 +217,14 @@ function OffersList() {
                         title="Pobierz PDF"
                       >
                         <FileDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleRegistryOne(o)}
+                        title="Do rejestru Sales partner"
+                      >
+                        <Send className="h-4 w-4" />
                       </Button>
                       <Button
                         size="icon"

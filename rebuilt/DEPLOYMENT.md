@@ -105,3 +105,7 @@ Etap 1 jest zakończony, jeśli:
 - działa routing SPA,
 - można wejść bezpośrednio na główne ścieżki,
 - użytkownik nie musi uruchamiać aplikacji przez terminal.
+
+## Uwaga o buildzie
+
+Konfiguracja `vite.config.ts` ustawia preset `nitro: { preset: "vercel" }` (domyślnie narzędzie Lovable celuje w Cloudflare). Build lokalny: `bun install --frozen-lockfile` i `bun run build`. Zależności instalować bunem (z `bun.lock`), npm bierze nowsze wersje pakietów i build się nie udaje.
