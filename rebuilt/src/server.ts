@@ -1,4 +1,5 @@
 import "./lib/error-capture";
+import { handleLogin } from "./lib/login.server";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -39,6 +40,8 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const login = await handleLogin(request);
+    if (login) return login;
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

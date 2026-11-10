@@ -109,3 +109,13 @@ Etap 1 jest zakończony, jeśli:
 ## Uwaga o buildzie
 
 Konfiguracja `vite.config.ts` ustawia preset `nitro: { preset: "vercel" }` (domyślnie narzędzie Lovable celuje w Cloudflare). Build lokalny: `bun install --frozen-lockfile` i `bun run build`. Zależności instalować bunem (z `bun.lock`), npm bierze nowsze wersje pakietów i build się nie udaje.
+
+## Logowanie (login i hasło)
+
+Aplikacja ma ekran logowania w stylu aplikacji serwisowej i audytowej. W Vercel, Settings, Environment Variables dodaj (dla Production i Preview):
+- `APP_PASSWORD`: hasło do aplikacji (wymagane, bez niego aplikacja jest otwarta),
+- `APP_USER`: login (opcjonalnie, domyślnie `drsystem`),
+- `APP_SECRET`: dowolny długi losowy ciąg do podpisywania sesji (opcjonalnie).
+
+Po zapisaniu zmiennych zrób Redeploy. Sesja trwa 12 godzin, wylogowanie pod adresem `/logout`.
+Uwaga: zabezpieczone są strony i funkcje serwerowe. Pliki skryptów mają losowe nazwy i nie da się ich znaleźć bez wejścia do aplikacji. Dane ofert są trzymane tylko w przeglądarce użytkownika.
