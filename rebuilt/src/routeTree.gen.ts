@@ -14,6 +14,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as DevicesRouteImport } from './routes/devices'
+import { Route as MontazRouteImport } from './routes/montaz'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as QuickRouteImport } from './routes/quick'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -44,6 +45,11 @@ const DatabaseRoute = DatabaseRouteImport.update({
 const DevicesRoute = DevicesRouteImport.update({
   id: '/devices',
   path: '/devices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MontazRoute = MontazRouteImport.update({
+  id: '/montaz',
+  path: '/montaz',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewRoute = NewRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof ContactsRoute
   '/database': typeof DatabaseRoute
   '/devices': typeof DevicesRoute
+  '/montaz': typeof MontazRoute
   '/new': typeof NewRoute
   '/quick': typeof QuickRoute
   '/settings': typeof SettingsRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof ContactsRoute
   '/database': typeof DatabaseRoute
   '/devices': typeof DevicesRoute
+  '/montaz': typeof MontazRoute
   '/new': typeof NewRoute
   '/quick': typeof QuickRoute
   '/settings': typeof SettingsRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/contacts': typeof ContactsRoute
   '/database': typeof DatabaseRoute
   '/devices': typeof DevicesRoute
+  '/montaz': typeof MontazRoute
   '/new': typeof NewRoute
   '/quick': typeof QuickRoute
   '/settings': typeof SettingsRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/database'
     | '/devices'
+    | '/montaz'
     | '/new'
     | '/quick'
     | '/settings'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/database'
     | '/devices'
+    | '/montaz'
     | '/new'
     | '/quick'
     | '/settings'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/database'
     | '/devices'
+    | '/montaz'
     | '/new'
     | '/quick'
     | '/settings'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   ContactsRoute: typeof ContactsRoute
   DatabaseRoute: typeof DatabaseRoute
   DevicesRoute: typeof DevicesRoute
+  MontazRoute: typeof MontazRoute
   NewRoute: typeof NewRoute
   QuickRoute: typeof QuickRoute
   SettingsRoute: typeof SettingsRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/devices'
       fullPath: '/devices'
       preLoaderRoute: typeof DevicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/montaz': {
+      id: '/montaz'
+      path: '/montaz'
+      fullPath: '/montaz'
+      preLoaderRoute: typeof MontazRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/new': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactsRoute: ContactsRoute,
   DatabaseRoute: DatabaseRoute,
   DevicesRoute: DevicesRoute,
+  MontazRoute: MontazRoute,
   NewRoute: NewRoute,
   QuickRoute: QuickRoute,
   SettingsRoute: SettingsRoute,

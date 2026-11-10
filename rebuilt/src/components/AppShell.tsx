@@ -1,6 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { FileText, Library, ListChecks, Settings, Sparkles, Users, Building2 } from "lucide-react";
+import { FileText, Library, ListChecks, Settings, Sparkles, Users, Building2, Calculator } from "lucide-react";
 import { useStore } from "@/lib/drsystem-store";
 
 const nav = [
@@ -8,6 +8,7 @@ const nav = [
   { to: "/contacts", label: "Kontakty", icon: Users },
   { to: "/", label: "Oferty", icon: FileText },
   { to: "/new", label: "Nowa oferta", icon: Sparkles },
+  { to: "/montaz", label: "Duży montaż", icon: Calculator },
   { to: "/devices", label: "Urządzenia", icon: Library },
   { to: "/templates", label: "Szablony", icon: ListChecks },
   { to: "/settings", label: "Ustawienia", icon: Settings },

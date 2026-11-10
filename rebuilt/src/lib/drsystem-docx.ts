@@ -175,6 +175,9 @@ export async function buildOfferDocx(offer: Offer, company: CompanyData): Promis
       `Warunki płatności: ${terms.paymentTerms}`,
       `Gwarancja na urządzenia: ${terms.deviceWarranty}`,
       `Gwarancja na wykonanie: ${terms.workmanshipWarranty}`,
+      ...(offer.validity?.trim() && offer.validity.trim() !== terms.paymentTerms
+        ? [`Ważność oferty: ${offer.validity.trim()}`]
+        : []),
     ].map((t) => ({ "@@DODATKOWE@@": clean(t) })),
   );
 
