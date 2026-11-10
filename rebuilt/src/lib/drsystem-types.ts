@@ -9,6 +9,7 @@ export const DEFAULT_CATEGORIES: SystemCategory[] = [
   "Bosch DSO",
   "DSO inne",
   "Materiały instalacyjne",
+  "Usługi DRSYSTEM",
   "Inne",
 ];
 
@@ -873,6 +874,49 @@ export const DEFAULT_WORKMANSHIP_WARRANTY = "12 miesięcy";
 export const DEFAULT_WARRANTY = DEFAULT_DEVICE_WARRANTY;
 export const DEFAULT_VALIDITY = DEFAULT_PAYMENT_TERMS;
 export const DEFAULT_VAT_NOTE = "Do cen należy doliczyć podatek VAT według obowiązujących stawek.";
+
+/**
+ * Stawki usług DRSYSTEM (ceny netto, potwierdzone przez Michała). To nie są dane przykładowe,
+ * więc nie znikają przy usuwaniu przykładowych urządzeń. Ceny można zmienić w Bazie urządzeń.
+ */
+export const SEED_SERVICES: Omit<Device, "id" | "usageCount" | "lastUsedAt">[] = [
+  {
+    name: "Praca technika (roboczogodzina)",
+    manufacturer: "DRSYSTEM",
+    category: "Usługi DRSYSTEM",
+    code: "USL-RBH",
+    description: "",
+    unit: "rbh",
+    price: 150,
+    vatRate: 23,
+    active: true,
+    favorite: true,
+  },
+  {
+    name: "Przyjazd serwisu w dniu świątecznym",
+    manufacturer: "DRSYSTEM",
+    category: "Usługi DRSYSTEM",
+    code: "USL-SW-PRZYJAZD",
+    description: "",
+    unit: "szt",
+    price: 1900,
+    vatRate: 23,
+    active: true,
+    favorite: true,
+  },
+  {
+    name: "Praca technika w dniu świątecznym (roboczogodzina)",
+    manufacturer: "DRSYSTEM",
+    category: "Usługi DRSYSTEM",
+    code: "USL-SW-RBH",
+    description: "",
+    unit: "rbh",
+    price: 250,
+    vatRate: 23,
+    active: true,
+    favorite: true,
+  },
+];
 
 export const SEED_DEVICES: Omit<Device, "id" | "usageCount" | "lastUsedAt">[] = [
   // === SSP — uniwersalne ===

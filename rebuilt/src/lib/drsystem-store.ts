@@ -25,6 +25,7 @@ import {
   SEED_CLIENTS,
   SEED_CONTACT_PERSONS,
   SEED_DEVICES,
+  SEED_SERVICES,
   SEED_FACILITY_COMPANIES,
   SEED_SITES,
   SEED_TEMPLATES,
@@ -71,6 +72,9 @@ interface Store {
   clearTopDevices: () => void;
   clearRecentDevices: () => void;
   removeSampleDevices: () => number;
+  /** Po usunięciu danych przykładowych nie dosiewamy ich ponownie przy starcie. */
+  samplesDismissed?: boolean;
+  servicesSeeded?: boolean;
 
   upsertTemplate: (t: OfferTemplate) => void;
   deleteTemplate: (id: string) => void;
@@ -117,13 +121,19 @@ function nextOfferNumber(offers: Offer[]): string {
 }
 
 function seedDevices(): Device[] {
-  return SEED_DEVICES.map((d) => ({
-    ...d,
-    id: uid(),
-    usageCount: 0,
-    lastUsedAt: null,
-    isSample: true,
-  }));
+  return [
+    ...seedServices(),
+    ...SEED_DEVICES.map((d) => ({
+      ...d,
+      id: uid(),
+      usageCount: 0,
+      lastUsedAt: null,
+      isSample: true,
+    })),
+  ];
+}
+function seedServices(): Device[] {
+  return SEED_SERVICES.map((d) => ({ ...d, id: uid(), usageCount: 0, lastUsedAt: null }));
 }
 function seedTemplates(): OfferTemplate[] {
   return SEED_TEMPLATES.map((t) => ({ ...t, id: uid() }));
@@ -145,6 +155,8 @@ export const useStore = create<Store>()(
       company: DEFAULT_COMPANY,
       categories: DEFAULT_CATEGORIES,
       devices: seedDevices(),
+      servicesSeeded: true,
+      samplesDismissed: false,
       templates: seedTemplates(),
       clients: seedClients(),
       facilityCompanies: SEED_FACILITY_COMPANIES.map((f) => ({ ...f })),
@@ -556,7 +568,7 @@ export const useStore = create<Store>()(
       removeSampleDevices: () => {
         const before = get().devices.length;
         const remaining = get().devices.filter((d) => !d.isSample);
-        set({ devices: remaining });
+        set({ devices: remaining, samplesDismissed: true });
         return before - remaining.length;
       },
 
@@ -804,12 +816,22 @@ export const useStore = create<Store>()(
           "Bosch DSO",
           "DSO inne",
           "Materiały instalacyjne",
+          "Usługi DRSYSTEM",
           "Inne",
         ];
         const cats = Array.isArray(state.categories) ? state.categories : [];
         state.categories = Array.from(new Set([...need, ...cats]));
-        // Dosiew brakujących urządzeń (oznaczone jako przykładowe)
-        for (const d of SEED_DEVICES) {
+        // Stawki usług DRSYSTEM: dosiewamy raz (potem użytkownik może je zmieniać i usuwać)
+        if (!state.servicesSeeded) {
+          for (const d of SEED_SERVICES) {
+            if (!state.devices.some((x) => x.code === d.code)) {
+              state.devices.push({ ...d, id: uid(), usageCount: 0, lastUsedAt: null });
+            }
+          }
+          state.servicesSeeded = true;
+        }
+        // Dosiew brakujących urządzeń (oznaczone jako przykładowe), chyba że użytkownik je usunął
+        for (const d of state.samplesDismissed ? [] : SEED_DEVICES) {
           if (!state.devices.some((x) => x.code === d.code || x.name === d.name)) {
             state.devices.push({
               ...d,
