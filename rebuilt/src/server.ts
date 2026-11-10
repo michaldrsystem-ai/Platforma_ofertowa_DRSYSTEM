@@ -1,5 +1,6 @@
 import "./lib/error-capture";
 import { handleLogin } from "./lib/login.server";
+import { handleCloud } from "./lib/cloud.server";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -42,6 +43,8 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const login = await handleLogin(request);
     if (login) return login;
+    const cloud = await handleCloud(request);
+    if (cloud) return cloud;
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
