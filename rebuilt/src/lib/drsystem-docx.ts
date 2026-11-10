@@ -2,8 +2,12 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
-  HeadingLevel,
+  Footer,
+  Header,
+  HorizontalPositionAlign,
+  HorizontalPositionRelativeFrom,
   ImageRun,
+  LevelFormat,
   Packer,
   Paragraph,
   ShadingType,
@@ -11,10 +15,9 @@ import {
   TableCell,
   TableRow,
   TextRun,
+  VerticalPositionAlign,
+  VerticalPositionRelativeFrom,
   WidthType,
-  Footer,
-  Header,
-  PageNumber,
 } from "docx";
 import fileSaver from "file-saver";
 const { saveAs } = fileSaver;
@@ -24,191 +27,414 @@ import {
   getOfferCommercialTerms,
   type CompanyData,
   type Offer,
-  type OfferLine,
 } from "./drsystem-types";
 import { buildOfferFilename } from "./offer-filename";
+import logoUrl from "@/assets/logo-drsystem.png?url";
+import watermarkUrl from "@/assets/znak-wodny.jpg?url";
+
+/**
+ * Oferta w Wordzie na papierze firmowym DRSYSTEM (wzór: szablon oferty Michała).
+ * Logo w prawym górnym rogu, pod nim "systemy teletechniczne", e-mail i www,
+ * znak wodny ze strzałkami, stopka z logo, NIP, REGON, KRS, telefonem, e-mailem i www.
+ * W lewym górnym rogu: Oferta nr, Dla, Opracował, Kontakt.
+ */
+
+const FONT = "Calibri";
+const FOOTER_PHONE = "tel. +48 68 384 54 62";
+const FOOTER_EMAIL = "drsystem@drsystem.pl";
+const FOOTER_WWW = "www.drsystem.pl";
 
 const fmt = (n: number) =>
   n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const PRIMARY = "C41E26";
-const MUTED = "6E6E73";
+const fmtInt = (n: number) =>
+  n.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 
 type Align = (typeof AlignmentType)[keyof typeof AlignmentType];
 
-function p(
+async function loadBytes(url: string): Promise<Uint8Array> {
+  const res = await fetch(url);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/** Tekst ze znacznikiem **pogrubienie** na przebiegi TextRun. */
+function runs(text: string, opts: { size?: number; bold?: boolean; italics?: boolean } = {}) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g).filter((x) => x !== "");
+  return parts.map((part) => {
+    const isBold = part.startsWith("**") && part.endsWith("**") && part.length > 4;
+    return new TextRun({
+      text: isBold ? part.slice(2, -2) : part,
+      bold: opts.bold || isBold,
+      italics: opts.italics,
+      size: opts.size ?? 22,
+      font: FONT,
+    });
+  });
+}
+
+function para(
   text: string,
-  opts: { bold?: boolean; size?: number; color?: string; align?: Align } = {},
+  opts: {
+    bold?: boolean;
+    italics?: boolean;
+    size?: number;
+    align?: Align;
+    before?: number;
+    after?: number;
+  } = {},
 ) {
   return new Paragraph({
     alignment: opts.align,
+    spacing: { before: opts.before ?? 0, after: opts.after ?? 80 },
+    children: runs(text, opts),
+  });
+}
+
+function label(text: string, before = 200) {
+  return para(text, { bold: true, before, after: 80 });
+}
+
+const NO_BORDER = {
+  top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+};
+
+const NO_BORDERS_TABLE = {
+  ...NO_BORDER,
+  insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+};
+
+function plainCell(children: Paragraph[], width: number) {
+  return new TableCell({
+    width: { size: width, type: WidthType.DXA },
+    borders: NO_BORDER,
+    children,
+  });
+}
+
+function infoLine(key: string, value: string) {
+  return new Paragraph({
+    alignment: AlignmentType.RIGHT,
+    spacing: { after: 20 },
     children: [
-      new TextRun({
-        text,
-        bold: opts.bold,
-        size: opts.size ?? 20,
-        color: opts.color,
-        font: "Arial",
-      }),
+      new TextRun({ text: `${key} `, bold: true, size: 20, font: FONT }),
+      new TextRun({ text: value, size: 20, font: FONT }),
     ],
   });
 }
 
-function sectionHeading(text: string) {
-  return new Paragraph({
-    heading: HeadingLevel.HEADING_2,
-    spacing: { before: 240, after: 120 },
-    children: [new TextRun({ text, bold: true, size: 24, color: PRIMARY, font: "Arial" })],
+function dateIso(iso: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso || "";
+}
+
+interface Row {
+  name: string;
+  qty: string;
+  price: string;
+  total: string;
+}
+
+function itemRows(offer: Offer): Row[] {
+  const rows: Row[] = [];
+  for (const l of offer.deviceLines) {
+    const { afterDiscount } = calcLine(l);
+    const unitNet = l.qty ? afterDiscount / l.qty : l.price;
+    rows.push({
+      name: l.name + (l.description ? `\n${l.description}` : ""),
+      qty: `${fmtInt(l.qty)}${l.unit ? " " + l.unit : ""}`,
+      price: `${fmt(unitNet)} zł`,
+      total: `${fmt(afterDiscount)} zł`,
+    });
+  }
+  for (const s of offer.scope) {
+    const price = Number(s.price ?? 0);
+    if (!price) continue;
+    const qty = Number(s.qty ?? 1);
+    rows.push({
+      name: s.text,
+      qty: fmtInt(qty),
+      price: `${fmt(price)} zł`,
+      total: `${fmt(qty * price)} zł`,
+    });
+  }
+  return rows;
+}
+
+function itemsTable(offer: Offer): Table | null {
+  const rows = itemRows(offer);
+  if (rows.length === 0) return null;
+  const hide = offer.hideUnitPrices;
+  const cols = hide ? [600, 6900, 1500] : [600, 4300, 1000, 1500, 1700];
+  const heads = hide ? ["Lp.", "Nazwa", "Ilość"] : ["Lp.", "Nazwa", "Ilość", "Cena netto", "Kwota razem"];
+  const border = { style: BorderStyle.SINGLE, size: 4, color: "7F7F7F" };
+  const borders = { top: border, bottom: border, left: border, right: border };
+
+  const mk = (text: string, w: number, align: Align, shade?: string, bold = false) =>
+    new TableCell({
+      width: { size: w, type: WidthType.DXA },
+      borders,
+      shading: shade ? { type: ShadingType.CLEAR, fill: shade, color: "auto" } : undefined,
+      margins: { top: 40, bottom: 40, left: 80, right: 80 },
+      children: text.split("\n").map(
+        (line) =>
+          new Paragraph({
+            alignment: align,
+            spacing: { after: 0 },
+            children: [new TextRun({ text: line, size: 18, font: FONT, bold })],
+          }),
+      ),
+    });
+
+  const alignFor = (i: number): Align =>
+    i === 0 ? AlignmentType.CENTER : i === 1 ? AlignmentType.LEFT : AlignmentType.RIGHT;
+
+  return new Table({
+    width: { size: cols.reduce((a, b) => a + b, 0), type: WidthType.DXA },
+    columnWidths: cols,
+    rows: [
+      new TableRow({
+        tableHeader: true,
+        children: heads.map((h, i) => mk(h, cols[i], i === 1 ? AlignmentType.LEFT : AlignmentType.CENTER, "F2F2F2", true)),
+      }),
+      ...rows.map(
+        (r, idx) =>
+          new TableRow({
+            cantSplit: true,
+            children: (hide ? [String(idx + 1), r.name, r.qty] : [String(idx + 1), r.name, r.qty, r.price, r.total]).map(
+              (t, i) => mk(t, cols[i], alignFor(i)),
+            ),
+          }),
+      ),
+    ],
   });
 }
 
-function cell(
-  text: string,
-  opts: { bold?: boolean; shade?: string; align?: Align; width?: number } = {},
-) {
-  return new TableCell({
-    width: opts.width ? { size: opts.width, type: WidthType.DXA } : undefined,
-    shading: opts.shade ? { fill: opts.shade, type: ShadingType.CLEAR, color: "auto" } : undefined,
-    margins: { top: 80, bottom: 80, left: 120, right: 120 },
+const NUMBERING_REF = "zakres-prac";
+
+export async function generateOfferDocx(offer: Offer, company: CompanyData) {
+  const totals = calcTotals(offer);
+  const terms = getOfferCommercialTerms(offer);
+  const [logo, watermark] = await Promise.all([loadBytes(logoUrl), loadBytes(watermarkUrl)]);
+
+  const dla = [offer.clientContact, offer.clientName].filter((x) => x && x.trim()).join(", ");
+  const phone = (offer.preparedPhone || company.preparedPhone || "").replace(/ /g, " ");
+
+  // Nagłówek: po lewej dane oferty, po prawej logo i dane firmy; znak wodny za tekstem.
+  const left = [
+    infoLine("Oferta nr:", offer.number || ""),
+    infoLine("Dla:", dla),
+    infoLine("Opracował:", offer.preparedBy || company.preparedBy || ""),
+    infoLine("Kontakt:", phone),
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      spacing: { after: 20 },
+      children: [
+        new TextRun({
+          text: offer.preparedEmail || company.preparedEmail || "",
+          size: 20,
+          font: FONT,
+        }),
+      ],
+    }),
+  ];
+  const right = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 0 },
+      children: [
+        new ImageRun({
+          type: "png",
+          data: logo,
+          transformation: { width: 190, height: 40 },
+          altText: { title: "DRSYSTEM", description: "Logo DRSYSTEM", name: "logo" },
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 0 },
+      children: [new TextRun({ text: "systemy teletechniczne", italics: true, size: 26, font: FONT })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 0 },
+      children: [new TextRun({ text: FOOTER_EMAIL, bold: true, italics: true, size: 22, font: FONT })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 0 },
+      children: [new TextRun({ text: FOOTER_WWW, bold: true, italics: true, size: 22, font: FONT })],
+    }),
+  ];
+
+  const watermarkPara = new Paragraph({
+    spacing: { after: 0 },
     children: [
-      new Paragraph({
-        alignment: opts.align,
-        children: [
-          new TextRun({
-            text,
-            bold: opts.bold,
-            size: 18,
-            font: "Arial",
-            color: opts.shade ? "FFFFFF" : "000000",
+      new ImageRun({
+        type: "jpg",
+        data: watermark,
+        transformation: { width: 440, height: 380 },
+        altText: { title: "Znak wodny", description: "Znak wodny DRSYSTEM", name: "znak-wodny" },
+        floating: {
+          horizontalPosition: {
+            relative: HorizontalPositionRelativeFrom.PAGE,
+            align: HorizontalPositionAlign.CENTER,
+          },
+          verticalPosition: {
+            relative: VerticalPositionRelativeFrom.PAGE,
+            align: VerticalPositionAlign.CENTER,
+          },
+          behindDocument: true,
+          allowOverlap: true,
+        },
+      }),
+    ],
+  });
+
+  const header = new Header({
+    children: [
+      watermarkPara,
+      new Table({
+        width: { size: 9070, type: WidthType.DXA },
+        columnWidths: [4535, 4535],
+        borders: NO_BORDERS_TABLE,
+        rows: [new TableRow({ children: [plainCell(left, 4535), plainCell(right, 4535)] })],
+      }),
+    ],
+  });
+
+  // Stopka: logo + dane firmy w trzech kolumnach.
+  const fl = (text: string, align: Align = AlignmentType.LEFT, bold = false) =>
+    new Paragraph({
+      alignment: align,
+      spacing: { after: 0 },
+      children: [new TextRun({ text, size: 14, font: FONT, bold })],
+    });
+  const footer = new Footer({
+    children: [
+      new Table({
+        width: { size: 9070, type: WidthType.DXA },
+        columnWidths: [2400, 2300, 2300, 2070],
+        borders: NO_BORDERS_TABLE,
+        rows: [
+          new TableRow({
+            children: [
+              plainCell(
+                [
+                  new Paragraph({
+                    children: [
+                      new ImageRun({
+                        type: "png",
+                        data: logo,
+                        transformation: { width: 120, height: 25 },
+                        altText: { title: "DRSYSTEM", description: "Logo DRSYSTEM", name: "logo-stopka" },
+                      }),
+                    ],
+                  }),
+                ],
+                2400,
+              ),
+              plainCell(
+                [fl("DRSYSTEM sp. z o.o.", AlignmentType.LEFT, true), fl(company.street), fl(company.city)],
+                2300,
+              ),
+              plainCell(
+                [fl(`NIP ${company.nip}`), fl(`REGON ${company.regon}`), fl(`KRS ${company.krs}`)],
+                2300,
+              ),
+              plainCell(
+                [
+                  fl(FOOTER_PHONE, AlignmentType.RIGHT),
+                  fl(FOOTER_EMAIL, AlignmentType.RIGHT),
+                  fl(FOOTER_WWW, AlignmentType.RIGHT),
+                ],
+                2070,
+              ),
+            ],
           }),
         ],
       }),
     ],
   });
-}
 
-function linesToTable(
-  title: string,
-  lines: OfferLine[],
-  hidePrices: boolean,
-): (Paragraph | Table)[] {
-  if (lines.length === 0) return [];
-  const cols = hidePrices ? [600, 5400, 1200, 1000] : [600, 3000, 1000, 700, 1300, 800, 1560];
-  const tableWidth = cols.reduce((a, b) => a + b, 0);
-  const headerCells = hidePrices
-    ? ["LP", "NAZWA", "ILOŚĆ", "JM"]
-    : ["LP", "NAZWA", "ILOŚĆ", "JM", "CENA NETTO", "RABAT", "WARTOŚĆ NETTO"];
-
-  const headerRow = new TableRow({
-    tableHeader: true,
-    children: headerCells.map((t, i) =>
-      cell(t, { bold: true, shade: PRIMARY, width: cols[i], align: AlignmentType.CENTER }),
-    ),
-  });
-
-  const bodyRows = lines.map((l, i) => {
-    const { afterDiscount } = calcLine(l);
-    const data = hidePrices
-      ? [String(i + 1), l.name + (l.description ? `\n${l.description}` : ""), fmt(l.qty), l.unit]
-      : [
-          String(i + 1),
-          l.name + (l.description ? `\n${l.description}` : ""),
-          fmt(l.qty),
-          l.unit,
-          fmt(l.price),
-          l.discount ? `${l.discount}%` : "—",
-          fmt(afterDiscount),
-        ];
-    return new TableRow({
-      children: data.map((t, idx) =>
-        cell(t, {
-          width: cols[idx],
-          align:
-            idx === 0 || idx === 3 || (!hidePrices && idx === 5)
-              ? AlignmentType.CENTER
-              : (!hidePrices && (idx === 2 || idx === 4 || idx === 6)) || (hidePrices && idx === 2)
-                ? AlignmentType.RIGHT
-                : AlignmentType.LEFT,
-        }),
-      ),
-    });
-  });
-
-  return [
-    sectionHeading(title),
-    new Table({
-      width: { size: tableWidth, type: WidthType.DXA },
-      columnWidths: cols,
-      rows: [headerRow, ...bodyRows],
-      borders: {
-        top: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-        bottom: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-        left: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-        right: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-        insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: "EEEEEE" },
-        insideVertical: { style: BorderStyle.SINGLE, size: 4, color: "EEEEEE" },
-      },
-    }),
+  const table = itemsTable(offer);
+  const purpose = offer.showPurpose === false ? "" : (offer.purpose || "").trim();
+  const infoLines = [
+    `Termin realizacji: ${terms.deliveryTerm}`,
+    `Warunki płatności: ${terms.paymentTerms}`,
+    `Gwarancja na urządzenia: ${terms.deviceWarranty}`,
+    `Gwarancja na wykonanie: ${terms.workmanshipWarranty}`,
   ];
-}
 
-function dataUrlToUint8(dataUrl: string): { data: Uint8Array; type: "png" | "jpg" } {
-  const [meta, b64] = dataUrl.split(",");
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  const type: "png" | "jpg" = meta.includes("png") ? "png" : "jpg";
-  return { data: arr, type };
-}
-
-export async function generateOfferDocx(offer: Offer, company: CompanyData) {
-  const totals = calcTotals(offer);
-  const commercialTerms = getOfferCommercialTerms(offer);
-
-  const headerChildren: Paragraph[] = [];
-  if (company.logoDataUrl) {
-    try {
-      const { data, type } = dataUrlToUint8(company.logoDataUrl);
-      headerChildren.push(
-        new Paragraph({
-          children: [
-            new ImageRun({
-              type,
-              data,
-              transformation: { width: 120, height: 48 },
-              altText: { title: "Logo", description: company.name, name: "logo" },
-            }),
-          ],
-        }),
-      );
-    } catch {
-      // ignoruj nieprawidłowe dane logo i użyj tekstowego nagłówka
-    }
-  } else {
-    headerChildren.push(p(company.name, { bold: true, size: 22, color: PRIMARY }));
-  }
+  const body: (Paragraph | Table)[] = [
+    para(`Rostworowo, ${dateIso(offer.date)}`, { align: AlignmentType.RIGHT, before: 200, after: 200 }),
+    para("Oferta DRSYSTEM", { bold: true, size: 28, align: AlignmentType.CENTER, after: 200 }),
+    new Paragraph({
+      spacing: { after: 0 },
+      border: { top: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 4 } },
+      children: [new TextRun({ text: "INWESTYCJA:", bold: true, size: 22, font: FONT })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 80, after: 160 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 4 } },
+      children: runs(offer.investmentName || "", { bold: true }),
+    }),
+    ...(purpose ? [label("Przedmiot oferty:", 120), para(purpose, { after: 120 })] : []),
+    ...(offer.scope.length
+      ? [
+          label("Zakres prac:", 160),
+          ...offer.scope.map(
+            (s) =>
+              new Paragraph({
+                numbering: { reference: NUMBERING_REF, level: 0 },
+                spacing: { after: 60 },
+                children: runs(s.text),
+              }),
+          ),
+        ]
+      : []),
+    label("Lokalizacja:", 200),
+    para(offer.locationAddress || "", { after: 120 }),
+    ...(table
+      ? [
+          label("Wyszczególnienie:", 160),
+          table,
+          para(`Łączny przewidywany koszt netto: ${fmt(totals.total)} zł`, {
+            bold: true,
+            size: 20,
+            align: AlignmentType.RIGHT,
+            before: 80,
+            after: 120,
+          }),
+        ]
+      : []),
+    para(`* ${offer.vatNote}`, { size: 18, before: 80, after: 160 }),
+    label("Dodatkowe informacje:", 160),
+    ...infoLines.map((t) => para(t, { size: 20, after: 40 })),
+  ];
 
   const doc = new Document({
-    styles: {
-      default: { document: { run: { font: "Arial", size: 20 } } },
-      paragraphStyles: [
+    creator: "DRSYSTEM",
+    title: `Oferta ${offer.number}`,
+    styles: { default: { document: { run: { font: FONT, size: 22 } } } },
+    numbering: {
+      config: [
         {
-          id: "Heading1",
-          name: "Heading 1",
-          basedOn: "Normal",
-          next: "Normal",
-          quickFormat: true,
-          run: { size: 36, bold: true, font: "Arial", color: PRIMARY },
-          paragraph: { spacing: { before: 240, after: 240 }, outlineLevel: 0 },
-        },
-        {
-          id: "Heading2",
-          name: "Heading 2",
-          basedOn: "Normal",
-          next: "Normal",
-          quickFormat: true,
-          run: { size: 24, bold: true, font: "Arial", color: PRIMARY },
-          paragraph: { spacing: { before: 200, after: 120 }, outlineLevel: 1 },
+          reference: NUMBERING_REF,
+          levels: [
+            {
+              level: 0,
+              format: LevelFormat.DECIMAL,
+              text: "%1.",
+              alignment: AlignmentType.LEFT,
+              // wcięcie wiszące: kolejne linie punktu równo z pierwszą
+              style: { paragraph: { indent: { left: 567, hanging: 340 } } },
+            },
+          ],
         },
       ],
     },
@@ -216,87 +442,13 @@ export async function generateOfferDocx(offer: Offer, company: CompanyData) {
       {
         properties: {
           page: {
-            size: { width: 11906, height: 16838 }, // A4
-            margin: { top: 1000, right: 1000, bottom: 1200, left: 1000 },
+            size: { width: 11906, height: 16838 },
+            margin: { top: 1500, right: 1418, bottom: 1500, left: 1418, header: 500, footer: 400 },
           },
         },
-        headers: { default: new Header({ children: headerChildren }) },
-        footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `${company.name} | ${company.street}, ${company.city} | NIP ${company.nip} | REGON ${company.regon} | KRS ${company.krs}`,
-                    size: 16,
-                    color: MUTED,
-                    font: "Arial",
-                  }),
-                ],
-              }),
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({ text: "Strona ", size: 16, color: MUTED, font: "Arial" }),
-                  new TextRun({
-                    children: [PageNumber.CURRENT],
-                    size: 16,
-                    color: MUTED,
-                    font: "Arial",
-                  }),
-                  new TextRun({ text: " / ", size: 16, color: MUTED, font: "Arial" }),
-                  new TextRun({
-                    children: [PageNumber.TOTAL_PAGES],
-                    size: 16,
-                    color: MUTED,
-                    font: "Arial",
-                  }),
-                ],
-              }),
-            ],
-          }),
-        },
-        children: [
-          new Paragraph({
-            heading: HeadingLevel.HEADING_1,
-            children: [
-              new TextRun({
-                text: "OFERTA HANDLOWA",
-                bold: true,
-                color: PRIMARY,
-                size: 40,
-                font: "Arial",
-              }),
-            ],
-          }),
-          p(`Oferta nr: ${offer.number}    Data: ${offer.date}`, { color: MUTED }),
-          sectionHeading("KLIENT"),
-          p(offer.clientName || "—", { bold: true }),
-          p(offer.clientAddress || ""),
-          sectionHeading("OPRACOWAŁ"),
-          p(offer.preparedBy, { bold: true }),
-          p(`tel: ${offer.preparedPhone}   e-mail: ${offer.preparedEmail}`, { color: MUTED }),
-          sectionHeading("INWESTYCJA"),
-          p(offer.investmentName || "—"),
-          sectionHeading("LOKALIZACJA"),
-          p(offer.locationAddress || "—"),
-          ...(offer.scope.length
-            ? [
-                sectionHeading("ZAKRES PRAC"),
-                ...offer.scope.map((s, i) => p(`${i + 1}. ${s.text}`)),
-              ]
-            : []),
-          ...linesToTable("URZĄDZENIA I MATERIAŁY", offer.deviceLines, offer.hideUnitPrices),
-          sectionHeading("PODSUMOWANIE"),
-          p(`Razem urządzenia netto: ${fmt(totals.dev)} zł`),
-          p(`Łącznie netto: ${fmt(totals.total)} zł`, { bold: true, color: PRIMARY, size: 24 }),
-          sectionHeading("INFORMACJE DODATKOWE"),
-          p(`Termin realizacji: ${commercialTerms.deliveryTerm}`),
-          p(`Warunki płatności: ${commercialTerms.paymentTerms}`),
-          p(`Gwarancja na urządzenia: ${commercialTerms.deviceWarranty}`),
-          p(`Gwarancja na wykonanie: ${commercialTerms.workmanshipWarranty}`),
-          p(offer.vatNote, { color: MUTED }),
-        ],
+        headers: { default: header },
+        footers: { default: footer },
+        children: body,
       },
     ],
   });
