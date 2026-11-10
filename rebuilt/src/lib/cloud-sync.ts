@@ -26,6 +26,8 @@ async function applyRemote(value: string, savedAt: number) {
   } finally {
     applying = false;
   }
+  // Rehydracja mogła uzupełnić dane (np. usługi DRSYSTEM): zapisz stan, żeby trafił też do chmury.
+  useStore.setState({});
 }
 
 async function pull(): Promise<"applied" | "empty" | "same" | "error"> {
