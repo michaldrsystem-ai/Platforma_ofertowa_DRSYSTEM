@@ -55,6 +55,8 @@ function DevicesPage() {
   const upsertDevice = useStore((s) => s.upsertDevice);
   const deleteDevice = useStore((s) => s.deleteDevice);
   const toggleFav = useStore((s) => s.toggleDeviceFavorite);
+  const removeSamples = useStore((s) => s.removeSampleDevices);
+  const sampleCount = devices.filter((d) => d.isSample).length;
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
@@ -78,6 +80,20 @@ function DevicesPage() {
       title="Biblioteka urządzeń"
       actions={
         <>
+          {sampleCount > 0 && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                if (window.confirm(`Usunąć ${sampleCount} przykładowych urządzeń z przykładowymi cenami? Usługi DRSYSTEM i zaimportowane cenniki zostają.`)) {
+                  const n = removeSamples();
+                  toast.success(`Usunięto ${n} przykładowych pozycji`);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" /> Usuń przykładowe ({sampleCount})
+            </Button>
+          )}
           <ImportDialog />
           <Button onClick={() => setEditing(blank(categories[0] ?? "Inne"))} className="gap-2">
             <Plus className="h-4 w-4" /> Nowe urządzenie
