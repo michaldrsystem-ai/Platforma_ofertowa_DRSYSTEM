@@ -167,3 +167,8 @@ export async function handleLogin(request: Request): Promise<Response | null> {
     headers: { location: "/login", "cache-control": "no-store" },
   });
 }
+
+/** Czy logowanie jest włączone (ustawiono APP_PASSWORD). */
+export function isLoginEnabled(): boolean {
+  return cfg().enabled;
+}
