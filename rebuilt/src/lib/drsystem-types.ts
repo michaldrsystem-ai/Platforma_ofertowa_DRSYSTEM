@@ -876,7 +876,7 @@ export const DEFAULT_VALIDITY = DEFAULT_PAYMENT_TERMS;
 export const DEFAULT_VAT_NOTE = "Do cen należy doliczyć podatek VAT według obowiązujących stawek.";
 
 /**
- * Stawki usług DRSYSTEM (ceny netto, potwierdzone przez Michała). To nie są dane przykładowe,
+ * Stawki usług DRSYSTEM (ceny netto, potwierdzone przez Michała 10.11.2026: roboczogodzina zawsze 200 zł, przyjazd w weekend, niedzielę i święto 3500 zł). To nie są dane przykładowe,
  * więc nie znikają przy usuwaniu przykładowych urządzeń. Ceny można zmienić w Bazie urządzeń.
  */
 export const SEED_SERVICES: Omit<Device, "id" | "usageCount" | "lastUsedAt">[] = [
@@ -887,31 +887,19 @@ export const SEED_SERVICES: Omit<Device, "id" | "usageCount" | "lastUsedAt">[] =
     code: "USL-RBH",
     description: "",
     unit: "rbh",
-    price: 150,
+    price: 200,
     vatRate: 23,
     active: true,
     favorite: true,
   },
   {
-    name: "Przyjazd serwisu w dniu świątecznym",
+    name: "Przyjazd serwisu w weekend, niedzielę lub święto",
     manufacturer: "DRSYSTEM",
     category: "Usługi DRSYSTEM",
-    code: "USL-SW-PRZYJAZD",
+    code: "USL-PRZYJAZD-SW",
     description: "",
     unit: "szt",
-    price: 1900,
-    vatRate: 23,
-    active: true,
-    favorite: true,
-  },
-  {
-    name: "Praca technika w dniu świątecznym (roboczogodzina)",
-    manufacturer: "DRSYSTEM",
-    category: "Usługi DRSYSTEM",
-    code: "USL-SW-RBH",
-    description: "",
-    unit: "rbh",
-    price: 250,
+    price: 3500,
     vatRate: 23,
     active: true,
     favorite: true,
